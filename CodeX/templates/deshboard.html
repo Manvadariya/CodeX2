@@ -41,7 +41,7 @@
             <div class="projects-grid">
                 {% if snippets %}
                     {% for snippet in snippets %}
-                        {% if "Temporary Execution" not in snippet.title %}
+                        {% if "Temporary Execution" not in snippet.title and "AI Chat" not in snippet.title %}
                         <div class="project-card">
                             <div class="card-header">
                                 <div>

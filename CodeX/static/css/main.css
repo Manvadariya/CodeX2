@@ -636,3 +636,32 @@ html, body {
     border-top-right-radius: 8px; /* Adjust as needed */
     border-bottom-right-radius: 8px; /* Adjust as needed */
 }
+
+.message-content .code-block {
+    position: relative;
+    background-color: #1e1e1e;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 10px 0;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+}
+
+.message-content .code-block .code-language-label {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #333;
+    color: #888;
+    padding: 4px 8px;
+    border-radius: 0 6px 0 6px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+}
+
+.message-content .code-block pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #ddd;
+}

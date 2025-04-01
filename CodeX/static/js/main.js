@@ -633,7 +633,7 @@ Example:
                 const languageLabel = language ? 
                     `<div class="code-language-label">${language}</div>`
                 : '';
-                return `<pre class="code-block" data-code-id="${codeId}">${languageLabel}${code}</pre>`;
+                return `<div class="code-block" data-code-id="${codeId}">${languageLabel}<pre>${code}</pre></div>`;
             });
             
             messageContent.innerHTML = formattedMessage;
@@ -704,50 +704,41 @@ Example:
                 
                 // Hide loading indicator
                 loadingElement.remove();
-                
-                if (data.status === 'success') {
-                    // Format input and output
-                    let outputDisplay = '';
+
+                // Add this code to display the AI response
+                if (data.response) {
+                    // Add the AI response to the chat
+                    addChatMessage(data.response, 'assistant');
                     
-                    // If there's input, show it with the output
-                    if (userInput.trim() && !userInput.startsWith('# Input')) {
-                        outputDisplay = `--- Input ---\n${userInput}\n\n--- Output ---\n${data.output}`;
-                    } else {
-                        outputDisplay = data.output;
-                    }
+                    // Update chat history with the user's message and AI's response
+                    chatHistory.push({
+                        role: "user",
+                        content: message
+                    });
+                    chatHistory.push({
+                        role: "assistant",
+                        content: data.response
+                    });
                     
-                    outputContent.innerHTML = `
-                        <div style="margin-bottom: 10px;">
-                            <span class="badge bg-primary">${language}</span>
-                            <span class="text-light ms-2">Execution completed</span>
-                        </div>
-                        <pre style="color: #ddd; background-color: #111; padding: 15px; border-radius: 6px; overflow-x: auto; margin-bottom: 0;">${outputDisplay}</pre>`;
-                    
-                    if (data.stderr && data.stderr.trim() !== '') {
-                        outputContent.innerHTML += `
-                            <div style="margin-top: 10px;">
-                                <span class="badge bg-danger">Errors</span>
-                            </div>
-                            <pre style="color: #ff5f57; background-color: #111; padding: 15px; border-radius: 6px; overflow-x: auto; margin-bottom: 0;">${data.stderr}</pre>`;
-                    }
-                } else {
-                    outputContent.innerHTML = `
-                        <div style="margin-bottom: 10px;">
-                            <span class="badge bg-danger">Error</span>
-                        </div>
-                        <pre style="color: #ff5f57; background-color: #111; padding: 15px; border-radius: 6px; overflow-x: auto; margin-bottom: 0;">${data.message}</pre>`;
+                    // Scroll to the bottom
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
             } catch (error) {
                 // Hide loading indicator
                 loadingElement.remove();
                 
-                outputContent.innerHTML = `
-                    <div style="margin-bottom: 10px;">
-                        <span class="badge bg-danger">Network Error</span>
-                    </div>
-                    <pre style="color: #ff5f57; background-color: #111; padding: 15px; border-radius: 6px; overflow-x: auto; margin-bottom: 0;">${error.message}</pre>`;
+                // Show error in chat
+                addChatMessage("Sorry, there was an error processing your request. Please try again.", 'assistant');
             }
         }
 
         // Send chat button functionality
         sendChatButton.addEventListener('click', sendChatMessage);
+        
+        // Add Enter key functionality for chat input
+        chatInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendChatMessage();
+            }
+        });
