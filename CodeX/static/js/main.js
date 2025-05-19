@@ -162,6 +162,17 @@ int main(){
                 editor.renderer.updateFull();
             }, 100);
         });
+        
+        // Initialize GitHub API key from localStorage if available for future API calls
+        // This makes it available for all API calls that need it during this session
+        window.updateGithubApiKey = function() {
+            if (localStorage.getItem('githubApiKey')) {
+                window.githubApiKey = localStorage.getItem('githubApiKey');
+            }
+        };
+        
+        // Initialize on page load
+        window.updateGithubApiKey();
 
         // Panel resizing logic
         const problemPanel = document.querySelector('.problem-panel');
@@ -361,13 +372,13 @@ int main(){
             
             // Display initial output state
             outputContent.innerHTML = '<p style="color: #ddd; text-align: center;">Running code...</p>';
-            
-            // Call the backend to execute code
+              // Call the backend to execute code
             fetch('/execute_code/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Github-Api-Key': localStorage.getItem('githubApiKey') || ''
                 },
                 body: JSON.stringify(data)
             })
@@ -590,9 +601,7 @@ Example:
         const chatMessages = document.getElementById('chat-messages');
         const chatInput = document.getElementById('chat-input');
         const sendChatButton = document.getElementById('send-chat');
-        let chatHistory = [];
-        
-        // Function to add a message to the chat
+        let chatHistory = [];            // Function to add a message to the chat
         function addChatMessage(message, sender) {
             const messageElement = document.createElement('div');
             messageElement.classList.add('chat-message', sender);
@@ -600,8 +609,16 @@ Example:
             const messageContent = document.createElement('div');
             messageContent.classList.add('message-content');
             
-            // Convert line breaks to <br> and handle code blocks
-            let formattedMessage = message.replace(/\n/g, '<br>');
+            // First, extract and save code blocks to prevent formatting within them
+            const codeBlocks = [];
+            let codeBlockIdx = 0;
+            let withoutCodeBlocks = message.replace(/```(\w+)?\s*([\s\S]*?)```/g, function(match, language, code) {
+                codeBlocks.push({language: language, code: code});
+                return `%%CODEBLOCK_${codeBlockIdx++}%%`;
+            });
+            
+            // Convert line breaks to <br>
+            let formattedMessage = withoutCodeBlocks.replace(/\n/g, '<br>');
             
             // Handle headers (###)
             formattedMessage = formattedMessage.replace(/###\s+(.*?)(<br>|$)/g, '<h3>$1</h3>');
@@ -617,32 +634,79 @@ Example:
             // Handle bolding with ** or __
             formattedMessage = formattedMessage.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             formattedMessage = formattedMessage.replace(/__(.*?)__/g, '<strong>$1</strong>');
-            
-            // Handle italics with * or _
+              // Handle italics with * or _
             formattedMessage = formattedMessage.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
             formattedMessage = formattedMessage.replace(/_([^_]+)_/g, '<em>$1</em>');
+            
+            // Handle inline code with backticks
+            formattedMessage = formattedMessage.replace(/`([^`]+)`/g, function(match, code) {
+                // Escape HTML entities in inline code
+                const escapedCode = code
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+                return `<code style="background-color: #333; padding: 2px 4px; border-radius: 3px;">${escapedCode}</code>`;
+            });
             
             // Function to generate a unique ID for code blocks
             function generateCodeId() {
                 return 'code-' + Math.random().toString(36).substr(2, 9);
             }
             
-            // Handle code blocks with language
-            formattedMessage = formattedMessage.replace(/```(\w+)?\s*([\s\S]*?)```/g, function(match, language, code) {
+            // Replace code block placeholders with properly formatted code
+            formattedMessage = formattedMessage.replace(/%%CODEBLOCK_(\d+)%%/g, function(match, idx) {
+                const codeBlock = codeBlocks[parseInt(idx)];
                 const codeId = generateCodeId();
-                const languageLabel = language ? 
-                    `<div class="code-language-label">${language}</div>`
+                // Escape angle brackets and other HTML entities to prevent parsing issues
+                const escapedCode = codeBlock.code
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+                
+                const languageLabel = codeBlock.language ? 
+                    `<div class="code-language-label">${codeBlock.language}</div>`
                 : '';
-                return `<div class="code-block" data-code-id="${codeId}">${languageLabel}<pre>${code}</pre></div>`;
+                const copyButton = `<button class="code-copy-btn" data-code-id="${codeId}" title="Copy code"><i class="bi bi-clipboard"></i></button>`;
+                return `<div class="code-block" data-code-id="${codeId}">${languageLabel}${copyButton}<pre>${escapedCode}</pre></div>`;
             });
             
-            messageContent.innerHTML = formattedMessage;
+            messageContent.innerHTML = formattedMessage;            // Add click event listeners to copy buttons for code blocks
+            messageContent.querySelectorAll('.code-copy-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const codeId = this.getAttribute('data-code-id');
+                    const codeBlock = messageContent.querySelector(`.code-block[data-code-id="${codeId}"]`);
+                    // Get the HTML content to convert back from escaped HTML to actual text
+                    const escapedText = codeBlock.querySelector('pre').innerHTML;
+                    // Convert escaped HTML entities back to characters
+                    const codeText = escapedText
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#039;/g, "'");
+                    
+                    navigator.clipboard.writeText(codeText).then(() => {
+                        // Change icon to indicate success
+                        const icon = this.querySelector('i');
+                        icon.classList.remove('bi-clipboard');
+                        icon.classList.add('bi-clipboard-check');
+                        
+                        // Change back after 2 seconds
+                        setTimeout(() => {
+                            icon.classList.remove('bi-clipboard-check');
+                            icon.classList.add('bi-clipboard');
+                        }, 2000);
+                    });
+                });
+            });
             messageElement.appendChild(messageContent);
             chatMessages.appendChild(messageElement);
             chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Function to send a chat message
+        }        // Function to send a chat message
         async function sendChatMessage() {
             const message = chatInput.value.trim();
             if (!message) return;
@@ -667,6 +731,13 @@ Example:
                 // Get code_id if available
                 const codeIdInput = document.getElementById('code-id');
                 const codeId = codeIdInput ? codeIdInput.value : null;
+                  // Check if GitHub API key is needed but not provided
+                if (!localStorage.getItem('githubApiKey')) {
+                    const missingApiKeyMessage = "No API key found. Please add your GitHub token or OpenAI API key in Settings (click the gear icon) to use the AI chat feature.";
+                    loadingElement.remove();
+                    addChatMessage(missingApiKeyMessage, 'assistant');
+                    return;
+                }
                 
                 // Prepare the context with code
                 let contextMessage = `I'm working with the following ${language} code:\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
@@ -684,41 +755,75 @@ Example:
                     prompt: contextMessage,
                     chat_history: chatHistory
                 };
-                
-                // Add code_id if available
+                  // Add code_id if available
                 if (codeId) {
                     requestData.code_id = codeId;
                 }
                 
-                // Get AI response
+                // Get the GitHub API key from localStorage
+                const githubApiKey = localStorage.getItem('githubApiKey');                // Validate the API key format before sending
+                if (githubApiKey) {
+                    // Check for valid API key formats
+                    if (!githubApiKey.startsWith('sk-') && !githubApiKey.startsWith('ghp_')) {
+                        loadingElement.remove();
+                        addChatMessage(`Error: Invalid API key format. Your key should either start with "sk-" (OpenAI) or "ghp_" (GitHub).
+
+Please go to Settings and enter a valid API key:
+- OpenAI API keys: https://platform.openai.com/api-keys 
+- GitHub tokens: https://github.com/settings/tokens`, 'assistant');
+                        return;
+                    }
+                }
+                  // Get AI response
                 const response = await fetch(window.CHAT_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'X-OpenAI-API-Key': githubApiKey || '',
+                        // Keep old header for backwards compatibility
+                        'X-Github-Api-Key': githubApiKey || ''
                     },
                     body: JSON.stringify(requestData)
                 });
                 
-                const data = await response.json();
-                
-                // Hide loading indicator
+                const data = await response.json();                // Hide loading indicator
                 loadingElement.remove();
 
                 // Add this code to display the AI response
                 if (data.response) {
-                    // Add the AI response to the chat
-                    addChatMessage(data.response, 'assistant');
-                    
-                    // Update chat history with the user's message and AI's response
-                    chatHistory.push({
-                        role: "user",
-                        content: message
-                    });
-                    chatHistory.push({
-                        role: "assistant",
-                        content: data.response
-                    });
+                    // Check if it's an error message related to the API key
+                    if (data.response.includes("Error: Authentication") || 
+                        data.response.includes("unauthorized") || 
+                        data.response.includes("Bad credentials") || 
+                        data.response.includes("401")) {
+                        
+                        // Determine which kind of API key is being used
+                        const apiKeyType = localStorage.getItem('githubApiKey')?.startsWith('ghp_') ? 'GitHub token' : 'API key';
+                        
+                        addChatMessage(`There seems to be an issue with your ${apiKeyType}. Please check that it's valid in the Settings panel. 
+                        
+Error details: ${data.response}
+
+Tips for fixing this issue:
+1. Make sure you've entered your complete ${apiKeyType} correctly
+2. Ensure your ${apiKeyType} has not expired or been revoked
+3. Check that you have the correct permissions for this API
+4. Try generating a new ${apiKeyType} if the problem persists`, 'assistant');
+                    } else {
+                        // Add the AI response to the chat
+                        addChatMessage(data.response, 'assistant');
+                        
+                        // Update chat history with the user's message and AI's response
+                        chatHistory.push({
+                            role: "user",
+                            content: message
+                        });
+                        chatHistory.push({
+                            role: "assistant",
+                            content: data.response
+                        });
+                    }
                     
                     // Scroll to the bottom
                     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -734,11 +839,41 @@ Example:
 
         // Send chat button functionality
         sendChatButton.addEventListener('click', sendChatMessage);
-        
-        // Add Enter key functionality for chat input
-        chatInput.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
+          // Add Enter key functionality for chat input
+        chatInput.addEventListener('keydown', function(event) {            if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 sendChatMessage();
+            }
+        });        // Settings panel functionality is now handled in settings.js
+
+        // All settings-related code has been moved to settings.js
+          // Global event listener for copy code buttons
+        document.addEventListener('click', function(event) {
+            if (event.target.closest('.code-copy-btn')) {
+                const button = event.target.closest('.code-copy-btn');
+                const codeId = button.getAttribute('data-code-id');
+                const codeBlock = document.querySelector(`.code-block[data-code-id="${codeId}"]`);
+                // Get the HTML content to convert back from escaped HTML to actual text
+                const escapedText = codeBlock.querySelector('pre').innerHTML;
+                // Convert escaped HTML entities back to characters
+                const codeText = escapedText
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#039;/g, "'");
+                
+                navigator.clipboard.writeText(codeText).then(() => {
+                    // Change icon to indicate success
+                    const icon = button.querySelector('i');
+                    icon.classList.remove('bi-clipboard');
+                    icon.classList.add('bi-clipboard-check');
+                    
+                    // Change back after 2 seconds
+                    setTimeout(() => {
+                        icon.classList.remove('bi-clipboard-check');
+                        icon.classList.add('bi-clipboard');
+                    }, 2000);
+                });
             }
         });

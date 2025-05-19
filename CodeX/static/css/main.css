@@ -650,8 +650,8 @@ html, body {
 .message-content .code-block .code-language-label {
     position: absolute;
     top: 0;
-    right: 0;
-    background-color: #333;
+    right: 30px; /* Adjusted to make space for copy button */
+    background-color: #000000;
     color: #888;
     padding: 4px 8px;
     border-radius: 0 6px 0 6px;
@@ -659,9 +659,37 @@ html, body {
     font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
 }
 
+.message-content .code-block .code-copy-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #000000;
+    color: #888;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 0 6px 0 6px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.message-content .code-block .code-copy-btn:hover {
+    background-color: #444;
+    color: #eee;
+}
+
 .message-content .code-block pre {
     margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     color: #ddd;
+}
+
+/* Settings panel styles */
+#editor-settings-panel.settings-panel {
+    display: none;
+}
+
+#editor-settings-panel.settings-panel.visible {
+    display: block;
 }

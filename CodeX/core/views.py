@@ -11,15 +11,68 @@ from openai import OpenAI
 from django.utils import timezone
 import re
 
-API_KEY = "ddc-XhP8nw45hLm9VWdknctmJv00BfgdlN1Ba9ymPAv4qcMEvD6Gn9"
-BASE_URL = "https://api.sree.shop/v1"
+# Default API credentials
+API_KEY = "paste_your_api_key_here"  # Replace with your actual API key
+BASE_URL = "https://models.inference.ai.azure.com"
 
-client = OpenAI(
+# Default client instance
+default_client = OpenAI(
     api_key=API_KEY,
     base_url=BASE_URL
 )
 
-def chat_with_gpt(prompt, chat_history):
+# Global variable to store the most recently used API key
+current_api_key = API_KEY
+
+def get_openai_client(api_key=None):
+    """
+    Creates and returns an OpenAI client with the provided API key.
+    Falls back to the most recently used API key if none is provided.
+    
+    Args:
+        api_key (str, optional): The API key to use for the client. 
+                                 If None, uses the most recently stored key.
+    
+    Returns:
+        OpenAI: Configured OpenAI client
+    """
+    global current_api_key
+    
+    # If an API key is provided, store it for future use
+    if api_key:
+        # Store the API key for future calls
+        current_api_key = api_key
+        print(f"Using custom API key: {api_key[:5]}...{api_key[-5:] if len(api_key) > 10 else ''}")
+        
+        # Check if it's a GitHub token
+        if api_key.startswith('ghp_'):
+            print("Detected GitHub token format")
+        
+        # Create a new client with the provided API key
+        return OpenAI(
+            api_key=api_key,
+            base_url=BASE_URL
+        )
+    
+    # If no API key is provided, use the most recently stored one
+    print("Using previously stored API key")
+    return OpenAI(
+        api_key=current_api_key,
+        base_url=BASE_URL
+    )
+
+def chat_with_gpt(prompt, chat_history, api_key=None):
+    """
+    Chats with GPT model using the provided prompt and chat history.
+    
+    Args:
+        prompt (str): The user's prompt
+        chat_history (list): List of previous chat messages
+        api_key (str, optional): API key to use for this request
+    
+    Returns:
+        str: The model's response
+    """
     messages = [
         {
             "role": "system",
@@ -37,8 +90,14 @@ def chat_with_gpt(prompt, chat_history):
     ]
     
     try:
+        # Get a client with the appropriate API key
+        client = get_openai_client(api_key)
+        
+        # Determine model based on API key type
+        model = "gpt-4.1"  # Default model
+        
         completion = client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=messages,
             temperature=1.0,
             top_p=1.0,
@@ -47,7 +106,15 @@ def chat_with_gpt(prompt, chat_history):
         )
         return completion.choices[0].message.content
     except Exception as e:
-        return f"Error: {e}"
+        error_message = str(e)
+        print(f"API Error: {error_message}")
+        
+        if "401" in error_message or "unauthorized" in error_message.lower() or "authentication" in error_message.lower():
+            return "Error: Authentication failed. Your API key appears to be invalid or expired."
+        elif "rate limit" in error_message.lower() or "429" in error_message:
+            return "Error: Rate limit exceeded. Please try again later."
+        else:
+            return f"Error: {error_message}"
 
 # Create your views here.
 def login_page(request):
@@ -144,6 +211,13 @@ def chat_api(request):
         chat_history = data.get('chat_history', [])
         code_id = data.get('code_id')
         
+        # Get API key from request headers if available
+        api_key = None
+        if 'X-OpenAI-API-Key' in request.headers:
+            api_key = request.headers.get('X-OpenAI-API-Key')
+        elif 'X-Github-Api-Key' in request.headers:
+            api_key = request.headers.get('X-Github-Api-Key')
+        
         if not prompt:
             return JsonResponse({'error': 'Prompt is required'}, status=400)
         
@@ -194,7 +268,8 @@ def chat_api(request):
                 code_content=code_content
             )
         
-        response = chat_with_gpt(prompt, chat_history)
+        # Pass the API key from the headers to the chat_with_gpt function
+        response = chat_with_gpt(prompt, chat_history, api_key)
         
         # Create AIAssistance record
         AIAssistance.objects.create(

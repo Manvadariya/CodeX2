@@ -181,12 +181,27 @@
     </div>
 
     <!-- Settings Panel -->
-    <div id="editor-settings-panel" style="display: none; position: fixed; top: 60px; right: 20px; width: 300px; background-color: var(--secondary-color); border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 10000; overflow: hidden;">
+    <div id="editor-settings-panel" style="display: none !important; position: fixed; top: 60px; right: 20px; width: 300px; background-color: var(--secondary-color); border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 10000; overflow: hidden;">
         <div style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <h5 style="margin: 0; color: var(--text-color);">Editor Settings <span style="font-size: 12px; opacity: 0.7;">(Ctrl+,)</span></h5>
             <button id="close-settings" class="btn btn-sm" style="background: none; border: none; color: var(--text-color);"><i class="bi bi-x-lg"></i></button>
         </div>
         <div style="padding: 15px; max-height: 70vh; overflow-y: auto;">
+            <div class="mb-3">
+                <label for="github-api-key" class="form-label">GitHub/OpenAI API Key <span style="color: #ff5f57;">(required for AI Chat)</span></label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="github-api-key" name="github-api-key" placeholder="Enter GitHub token (ghp_) or OpenAI key (sk-)"
+                           style="background-color: var(--primary-color); color: var(--text-color); border-color: var(--border-color);">
+                    <button class="btn btn-outline-secondary" type="button" id="toggle-api-key-visibility"
+                            style="background-color: var(--primary-color); color: var(--text-color); border-color: var(--border-color);">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+                <small class="form-text" style="margin-top: 5px; font-size: 0.75rem; color: rgb(255, 255, 255);">
+                    Your API key is stored locally and used for AI model calls. Supports:
+                    <a href="https://github.com/settings/tokens" target="_blank" style="color: var(--accent-color);">GitHub tokens</a>
+                </small>
+            </div>
             <div class="mb-3">
                 <label class="form-label">Font Size</label>
                 <div class="d-flex align-items-center">
@@ -275,4 +290,5 @@
 
 {% block page_scripts %}
     <script src="{% static 'js/main.js' %}"></script>
+    <script src="{% static 'js/settings.js' %}"></script>
 {% endblock %}
